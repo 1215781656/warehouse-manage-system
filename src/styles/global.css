@@ -1,0 +1,65 @@
+:root{
+  --el-font-size-extra-large: 18px;
+  --el-font-size-large: 16px;
+  --el-font-size-medium: 16px;
+  --el-font-size-base: 16px;
+  --el-font-size-small: 14px;
+}
+
+html, body { font-size: 16px; }
+.el-table { font-size: 16px; }
+
+/* Inputs */
+.el-input__inner { font-size: 16px; }
+.el-input__wrapper {
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 4px;
+}
+.el-select .el-input__wrapper { min-height: 32px; }
+.el-textarea__inner { font-size: 16px; border-radius: 4px; }
+
+/* Buttons */
+.el-button {
+  font-size: 16px;
+  height: 28px;
+  min-height: 28px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+}
+.el-button--primary { height: 32px; min-height: 32px; }
+.el-button:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
+.el-button:active { box-shadow: 0 6px 18px rgba(0,0,0,0.22); }
+
+/* Search Area */
+.search-row {
+  min-height: 56px;
+  padding: 16px 16px;
+  gap: 20px;
+}
+.select-row { min-height: 56px; padding: 0 16px; display:flex; align-items:center; }
+.label { font-size: 16px; }
+
+.el-date-editor,
+.el-date-editor--daterange,
+.el-date-editor.el-date-editor--timerange,
+.el-date-editor.el-date-editor--datetimerange{
+  width: 200px !important;
+}
+
+/* Focus states */
+.el-input__wrapper.is-focus, .el-input__wrapper:focus-within {
+  box-shadow: 0 0 0 2px rgba(76,175,80,0.25);
+}
+
+@media (max-width: 768px) {
+  .search-row { padding: 12px; gap: 12px; }
+  .el-button { font-size: 14px; }
+  .el-date-editor,
+  .el-date-editor--daterange,
+  .el-date-editor.el-date-editor--timerange,
+  .el-date-editor.el-date-editor--datetimerange{ width: 100% !important; }
+}
