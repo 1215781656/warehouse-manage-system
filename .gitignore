@@ -6,7 +6,13 @@ dist/
 build/
 out/
 release/
+.vercel/
+release-build/
+release-publish/
+release-temp/
+**/win-unpacked/
 .vite/
+coverage/
 coverage/
 
 # Logs
@@ -35,10 +41,15 @@ temp/
 
 # Electron
 *.asar
+*.exe
+*.blockmap
+builder-debug.yml
+builder-effective-config.yaml
+latest.yml
+app-update.yml
 
 # IDE/OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-

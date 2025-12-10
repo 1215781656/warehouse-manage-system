@@ -118,7 +118,7 @@ export const useUserStore = defineStore('user', () => {
       }
       const response = await window.electronAPI.userCreate({
         username: userData.username,
-        password: userData.password_hash,
+        password: (userData as any).password || userData.password_hash,
         name: userData.name,
         role: userData.role,
         email: userData.email

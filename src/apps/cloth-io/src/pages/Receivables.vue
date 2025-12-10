@@ -9,18 +9,25 @@
         </div>
       </template>
       <div class="search-row">
+          <span class="label">日期</span>
+        <div>
+          <el-date-picker v-model="search.range" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束"/>
+        </div>
         <span class="label">客户</span>
         <el-input v-model="search.customer" size="small" style="width:160px" />
-        <span class="label">单号</span>
+        <span class="label">货单号</span>
         <el-input v-model="search.order_no" size="small" style="width:160px" />
-        <span class="label">日期</span>
-        <el-date-picker v-model="search.range" type="daterange" range-separator="至" start-placeholder="开始" end-placeholder="结束" size="small" />
+        <span class="label">编号</span>
+        <el-input v-model="search.item_code" size="small" style="width:160px" />
         <el-button size="small" type="primary" style="margin-left:8px" @click="load">查询</el-button>
         <el-button size="small" style="margin-left:8px" @click="reset">重置</el-button>
       </div>
-      <div class="select-row"><el-checkbox v-model="selectAll" @change="toggleSelectAll">全选所有数据</el-checkbox></div>
-      <el-table ref="tableRef" :data="filtered" stripe style="width:100%" v-loading="loading" :row-key="rowKey" @selection-change="onSelectionChange">
-        <el-table-column type="selection" width="55" />
+      <div class="select-row">
+        <el-checkbox v-model="selectAll" @change="toggleSelectAll">全选所有数据</el-checkbox>
+        <span style="margin-left:12px">已选：{{ selectionCount }} 条</span>
+      </div>
+      <el-table ref="tableRef" :data="paged" stripe style="width:100%" v-loading="loading" :row-key="rowKey" :reserve-selection="true" @selection-change="onSelectionChange">
+        <el-table-column type="selection" width="55" :selectable="rowSelectable" />
         <el-table-column prop="ship_date" label="出货日期" width="120" />
         <el-table-column prop="order_no" label="货单号" width="140" />
         <el-table-column prop="item_code" label="编号" width="120" />
@@ -38,6 +45,9 @@
           </template>
         </el-table-column>
       </el-table>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <el-pagination background layout="total, sizes, prev, pager, next, jumper" :total="total" :page-sizes="pageSizes" :page-size="pageSize" :current-page="currentPage" @size-change="handleSizeChange" @current-change="handlePageChange" />
+      </div>
       <el-dialog v-model="dialogVisible" title="编辑已付金额" align-center width="400px">
         <el-form label-width="100px">
           <el-form-item label="货单号"><el-input v-model="editOrderNo" disabled /></el-form-item>
@@ -53,22 +63,23 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { query, execute } from '@/api/db'
 import { exportToXLSX, getVisibleColumnsFromTable } from '@/utils/exportExcel'
 import { ElMessage } from 'element-plus'
+import { runWithLoading } from '@/utils/ui'
 
 const loading = ref(false)
 const rows = ref<any[]>([])
 const tableRef = ref<any>(null)
 const selectAll = ref(false)
 const selectedKeys = ref<Set<any>>(new Set())
+const suppressSelectionEvent = ref(false)
 const rowKey = (row:any)=> `${row.order_no}|${row.item_code||''}`
-const onSelectionChange = (sel:any[]) => { selectedKeys.value = new Set(sel.map(r=>rowKey(r))) }
-const toggleSelectAll = () => {
-  if (selectAll.value) filtered.value.forEach(r=> tableRef.value?.toggleRowSelection(r, true))
-  else filtered.value.forEach(r=> tableRef.value?.toggleRowSelection(r, false))
-}
+const onSelectionChange = (sel:any[]) => { if (suppressSelectionEvent.value) return; const pageRows = paged.value; const pageKeys = new Set(pageRows.map(r=>rowKey(r))); const newSel = new Set(sel.map(r=>rowKey(r))); for (const k of Array.from(pageKeys)) selectedKeys.value.delete(k); for (const k of Array.from(newSel)) selectedKeys.value.add(k); if (selectAll.value && newSel.size < pageRows.length) selectAll.value=false }
+const toggleSelectAll = async () => { if (selectAll.value) { selectedKeys.value = new Set(filtered.value.map(r=>rowKey(r))); suppressSelectionEvent.value = true; paged.value.forEach(r=> tableRef.value?.toggleRowSelection(r, true)); suppressSelectionEvent.value=false } else { selectedKeys.value.clear(); paged.value.forEach(r=> tableRef.value?.toggleRowSelection(r, false)) } await nextTick(); restoreSelection() }
+const rowSelectable = () => !selectAll.value
+const selectionCount = computed(()=> selectedKeys.value.size)
 const onExport = async () => {
   try {
     let rowsSel: any[] = []
@@ -100,19 +111,28 @@ const onExport = async () => {
     ElMessage.success('已导出')
   } catch (e:any) { ElMessage.error(e.message||'导出失败') }
 }
-const search = ref<{customer:string; order_no:string; range: [Date,Date]|null}>({ customer:'', order_no:'', range: null })
+const search = ref<{customer:string; order_no:string; item_code:string; range: [Date,Date]|null}>({ customer:'', order_no:'', item_code:'', range: null })
 const filtered = computed(()=>{
   return rows.value.filter(r=>{
     if (search.value.customer && !(r.customer||'').includes(search.value.customer)) return false
     if (search.value.order_no && !(r.order_no||'').includes(search.value.order_no)) return false
+    if (search.value.item_code && !(r.item_code||'').includes(search.value.item_code)) return false
     if (search.value.range) {
       const d = new Date(r.ship_date)
       const [s,e] = search.value.range
-      if (isNaN(d.getTime()) || d < s || d > e) return false
+      const end = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59, 999)
+      if (isNaN(d.getTime()) || d < s || d > end) return false
     }
     return true
   })
 })
+const pageSize = ref(10)
+const pageSizes = ref([10,20,50,100])
+const currentPage = ref(1)
+const total = computed(()=> filtered.value.length)
+const paged = computed(()=> filtered.value.slice((currentPage.value-1)*pageSize.value, (currentPage.value-1)*pageSize.value + pageSize.value))
+const handlePageChange = async (p:number)=>{ suppressSelectionEvent.value = true; currentPage.value = p; await nextTick(); restoreSelection(); suppressSelectionEvent.value=false }
+const handleSizeChange = async (s:number)=>{ suppressSelectionEvent.value = true; pageSize.value = s; currentPage.value = 1; await nextTick(); restoreSelection(); suppressSelectionEvent.value=false }
 
 const ensureTable = async () => {
   await execute(`CREATE TABLE IF NOT EXISTS receivables (
@@ -129,9 +149,34 @@ const ensureTable = async () => {
 }
 
 const load = async () => {
-  loading.value = true
-  try {
+  await runWithLoading(loading, async () => {
     await ensureTable()
+    await execute(`
+      INSERT INTO receivables (order_no, customer, ship_date, total_amount, paid_amount, unpaid_amount)
+      SELECT o.order_no,
+             COALESCE(MAX(o.customer),'') AS customer,
+             COALESCE(MIN(o.ship_date),'') AS ship_date,
+             COALESCE(SUM(o.total_amount),0) AS total_amount,
+             0 AS paid_amount,
+             COALESCE(SUM(o.total_amount),0) AS unpaid_amount
+      FROM stock_out_records o
+      GROUP BY o.order_no
+      HAVING NOT EXISTS (SELECT 1 FROM receivables r WHERE r.order_no = o.order_no)
+    `)
+    await execute(`
+      WITH sums AS (
+        SELECT order_no, COALESCE(SUM(total_amount),0) AS total
+        FROM stock_out_records
+        GROUP BY order_no
+      )
+      UPDATE receivables AS r
+      SET total_amount = COALESCE((SELECT total FROM sums s WHERE s.order_no = r.order_no), 0),
+          unpaid_amount = CASE
+            WHEN COALESCE((SELECT total FROM sums s WHERE s.order_no = r.order_no), 0) - COALESCE(r.paid_amount, 0) < 0 THEN 0
+            ELSE COALESCE((SELECT total FROM sums s WHERE s.order_no = r.order_no), 0) - COALESCE(r.paid_amount, 0)
+          END,
+          updated_at = CURRENT_TIMESTAMP
+    `)
     rows.value = await query(`
       SELECT sor.ship_date, sor.order_no, sor.item_code, sor.customer, sor.item_name, sor.composition, sor.color, sor.process_code, sor.gram_weight, sor.rolls, sor.weight_kg, sor.price, sor.total_amount,
              r.paid_amount, r.unpaid_amount, r.id AS recv_id
@@ -140,8 +185,10 @@ const load = async () => {
       ORDER BY sor.created_at DESC
       LIMIT 1000
     `)
-  } finally { loading.value=false }
+  })
+  await nextTick(); restoreSelection()
 }
+const restoreSelection = () => { suppressSelectionEvent.value = true; paged.value.forEach(r=> tableRef.value?.toggleRowSelection(r, selectedKeys.value.has(rowKey(r)) || selectAll.value)); suppressSelectionEvent.value = false }
 
 const dialogVisible = ref(false)
 const paidEdit = ref(0)
@@ -157,7 +204,8 @@ const savePaid = async () => {
   try {
     const paid = Number(paidEdit.value||0)
     const unpaid = Math.max(Number(editTotal.value||0) - paid, 0)
-    await execute('UPDATE receivables SET paid_amount=?, unpaid_amount=?, updated_at=CURRENT_TIMESTAMP WHERE order_no=?', [paid, unpaid, editOrderNo.value])
+    const bizId = await window.electronAPI.genBizId('REC', new Date().toISOString().slice(0,10))
+    await execute('INSERT INTO receivables (biz_id, order_no, customer, ship_date, total_amount, paid_amount, unpaid_amount) VALUES (?,?,?,?,?,?,?) ON CONFLICT(order_no) DO UPDATE SET paid_amount=?, unpaid_amount=?, updated_at=CURRENT_TIMESTAMP', [bizId, editOrderNo.value, '', '', editTotal.value, paid, unpaid, paid, unpaid])
     ElMessage.success('已保存')
     dialogVisible.value = false
     load()
@@ -169,9 +217,11 @@ const savePaid = async () => {
 const reset = () => { search.value = { customer:'', order_no:'', range:null } }
 
 onMounted(load)
+// 数据清空通知后刷新
+try { window.electronAPI.onDataCleared(()=> load()) } catch {}
 </script>
 <style scoped>
 .search-row {margin-bottom:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
 .select-row {margin:6px 0; padding-left:12px}
-.label{color:#b8b8b8;font-size:12px;margin-left:8px}
+.label{font-size:16px;margin-left:8px;margin-right: 8px;}
 </style>

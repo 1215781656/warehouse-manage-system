@@ -9,8 +9,11 @@
     "preview": "vite preview",
     "electron": "electron .",
     "electron:dev": "concurrently -n dev,electron -c \"blue,magenta\" \"npm run dev\" \"wait-on tcp:5174 && set NODE_ENV=development&& electron .\"",
+    "electron:dir": "npm run build && electron-builder --dir",
+    "electron:nsis": "npm run build && electron-builder --win nsis",
     "electron:build": "npm run build && electron-builder",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "test": "node tests/run-tests.js"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.1.0",
@@ -33,6 +36,8 @@
     "concurrently": "^8.2.0",
     "electron": "^25.3.1",
     "electron-builder": "^24.6.3",
+    "image-size": "^2.0.2",
+    "to-ico": "^1.1.5",
     "typescript": "^5.1.6",
     "vite": "^4.4.5",
     "vue-tsc": "^1.8.5",
@@ -41,17 +46,18 @@
   "build": {
     "appId": "com.uniform.warehouse",
     "productName": "校服仓库管理系统",
+    "npmRebuild": false,
     "directories": {
-      "output": "dist"
+      "output": "release-build"
     },
     "files": [
-      "dist/**/*",
+      "dist/web/**/*",
       "electron/**/*",
       "node_modules/**/*"
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icons/icon.ico"
+      "icon": "node_modules/app-builder-lib/templates/icons/proton-native/proton-native.ico"
     },
     "nsis": {
       "oneClick": false,

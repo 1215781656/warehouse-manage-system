@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
 export default defineConfig({
+  base: './',
   plugins: [vue()],
   resolve: {
     alias: {
@@ -15,7 +16,8 @@ export default defineConfig({
     strictPort: true
   },
   build: {
-    outDir: 'dist',
+    outDir: 'dist/web',
+    emptyOutDir: false,
     assetsDir: 'assets',
     rollupOptions: {
       input: {

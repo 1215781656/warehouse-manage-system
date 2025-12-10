@@ -55,7 +55,7 @@
       </el-form>
       
       <div class="login-footer">
-        <p>默认用户名: admin | 密码: admin123</p>
+        <p></p>
       </div>
     </div>
   </div>

@@ -114,7 +114,7 @@ body {
   font-weight: 600;
 }
 .spacer { flex: 1; }
-.main { padding: 16px; }
+.main { padding: 16px; overflow: auto; }
 
 /* 赛博朋克主题样式 */
 .cyberpunk-theme {

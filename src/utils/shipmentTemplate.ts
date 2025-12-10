@@ -17,6 +17,16 @@ async function resolveTemplateBuffer(input: string): Promise<{ url: string | nul
       }
     } catch {}
   }
+  try {
+    const api: any = (window as any).electronAPI
+    if (api && api.readFileBuffer) {
+      const rels = ['templates/shipment-template.xlsx', 'shipment-template.xlsx']
+      for (const rel of rels) {
+        const buf = await api.readFileBuffer(rel)
+        if (buf && buf.byteLength) return { url: rel, buffer: buf }
+      }
+    }
+  } catch {}
   return { url: null, buffer: null }
 }
 

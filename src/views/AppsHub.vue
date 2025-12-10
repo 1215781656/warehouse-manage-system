@@ -10,7 +10,7 @@
         <el-col :span="6" v-for="app in apps" :key="app.id">
           <el-card shadow="hover">
             <div style="font-weight:600">{{ app.title }}</div>
-            <div style="color:#b8b8b8; font-size:12px; margin-top:6px">{{ app.description }}</div>
+            <div style="font-size:16px; margin-top:6px">{{ app.description }}</div>
             <div style="margin-top:10px">
               <el-button type="primary" size="small" @click="open(app)">进入应用</el-button>
             </div>

@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "meta": {
+    "description": "Excel 导出样式配置。支持多工作表、默认列宽/行高、按列与按行覆盖。",
+    "notes": [
+      "units.columnWidth: 列宽单位（wch=字符宽度，px=像素）",
+      "defaults: 所有工作表的默认列宽与默认行高",
+      "sheets[*].applyTo: 匹配条件（filenamePattern 支持 * 通配；sheetName 精确匹配）",
+      "sheets[*].columns: 通过 key（字段名）或 label（列标题）设置列宽",
+      "sheets[*].rows: 行高设置，defaultHeight 为默认行高，overrides 可按 index 或范围覆盖"
+    ]
+  },
+  "units": {
+    "columnWidth": "wch"
+  },
+  "defaults": {
+    "columnWidth": 15,
+    "rowHeight": 20
+  },
+  "sheets": [
+    {
+      "id": "default",
+      "applyTo": { "filenamePattern": "*", "sheetName": "Sheet1" },
+      "columns": [{ "key": "item_name", "label": "品名规格", "width": 25 }],
+      "rows": {
+        "defaultHeight": 20,
+        "overrides": [
+          { "type": "index", "index": 1, "height": 22 },
+          { "type": "range", "start": 2, "end": 200, "height": 20 }
+        ]
+      }
+    },
+    {
+      "id": "receivables",
+      "applyTo": { "filenamePattern": "应收管理*", "sheetName": "Sheet1" },
+      "columns": [
+        { "label": "客户", "width": 28 },
+        { "label": "品名规格", "width": 60 }
+      ],
+      "rows": { "defaultHeight": 20 }
+    }
+  ]
+}

@@ -6,35 +6,71 @@ export interface ExportColumn {
 }
 
 export async function exportToXLSX(filename: string, columns: ExportColumn[], rows: any[]) {
-  const XLSX = await import('xlsx')
+  const ExcelMod: any = await import('exceljs/dist/exceljs.min.js')
+  const Workbook = ExcelMod.Workbook || (ExcelMod.default && ExcelMod.default.Workbook)
+  const wb = new Workbook()
+  const ws = wb.addWorksheet('Sheet1')
   const header = columns.map(c => c.label)
   const keys = columns.map(c => c.prop)
-  const aoa: any[] = [header]
+
+  const widths: number[] = columns.map(c => {
+    const isNum = rows.every(r => typeof r[c.prop] === 'number')
+    let maxLen = isNum ? 12 : (c.label?.length || 8)
+    for (const r of rows) {
+      const s = r[c.prop] == null ? '' : String(r[c.prop])
+      if (s.length > maxLen) maxLen = s.length
+    }
+    let w = Math.max(Math.floor(maxLen * 1.6) + 8, 18)
+    return Math.max(8, w)
+  })
+
+  const cfg = matchSheetConfig(filename, 'Sheet1')
+  const defaults = (styles as any)?.defaults || {}
+  ws.columns = columns.map((c, i) => {
+    let width = toWch(defaults?.columnWidth ?? widths[i])
+    if (cfg?.columns) {
+      const hit = cfg.columns.find((x: any) => (x.key && x.key === c.prop) || (x.label && x.label === c.label))
+      if (hit && hit.width) width = toWch(hit.width)
+    }
+    return { header: c.label, key: c.prop, width }
+  })
+
+  ws.getRow(1).font = { bold: true }
+  ws.getRow(1).alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+  ws.getRow(1).height = (cfg?.rows?.overrides?.find((x: any) => x.type === 'index' && x.index === 1)?.height) || (cfg?.rows?.defaultHeight ?? defaults?.rowHeight ?? 22)
+  ws.getRow(1).eachCell(cell => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEFEF' } }
+    cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' }, bottom: { style: 'thin' } }
+  })
+
   const limit = 10000
-  const wb = XLSX.utils.book_new()
-  const ws = XLSX.utils.aoa_to_sheet([header])
   let written = 0
   while (written < rows.length) {
     const chunk = rows.slice(written, written + limit)
-    const chunkAoa = chunk.map(r => keys.map(k => r[k]))
-    XLSX.utils.sheet_add_aoa(ws, chunkAoa, { origin: -1 })
+    chunk.forEach(r => {
+      const rowData: any = {}
+      keys.forEach(k => { rowData[k] = r[k] })
+      const newRow = ws.addRow(rowData)
+      newRow.alignment = { wrapText: true, vertical: 'middle' }
+      const idx = newRow.number
+      let h = cfg?.rows?.defaultHeight ?? defaults?.rowHeight
+      const ovrIdx = cfg?.rows?.overrides?.find((x: any) => x.type === 'index' && x.index === idx)
+      const ovrRange = cfg?.rows?.overrides?.find((x: any) => x.type === 'range' && idx >= x.start && idx <= x.end)
+      if (ovrIdx?.height) h = ovrIdx.height
+      else if (ovrRange?.height) h = ovrRange.height
+      if (h) newRow.height = h
+      newRow.eachCell(cell => { cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, right: { style: 'thin' }, bottom: { style: 'thin' } } })
+    })
     written += chunk.length
   }
-  const colsWidth = columns.map((c, idx) => {
-    const isNumber = rows.every(r => typeof r[c.prop] === 'number')
-    if (isNumber) return { wch: 12 }
-    let maxLen = c.label?.length || 8
-    for (const r of rows) {
-      const v = r[c.prop]
-      const s = v == null ? '' : String(v)
-      if (s.length > maxLen) maxLen = s.length
-    }
-    const w = Math.max(Math.floor(maxLen * 1.6) + 8, 18)
-    return { wch: w }
-  })
-  ;(ws as any)['!cols'] = colsWidth
-  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
-  XLSX.writeFile(wb, filename)
+
+  const buf = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
 }
 
 export function getVisibleColumnsFromTable(tableRef: any): ExportColumn[] {
@@ -149,4 +185,27 @@ export async function generateShipmentExcel(filename: string, meta: ShipmentMeta
 
   XLSX.utils.book_append_sheet(wb, ws, '发货单')
   XLSX.writeFile(wb, filename)
+}
+import styles from '@/config/excelStyles.json'
+function matchSheetConfig(filename: string, sheetName: string) {
+  const sheets = (styles as any)?.sheets || []
+  const test = (pat: string, name: string) => {
+    if (!pat) return true
+    if (pat === '*') return true
+    const esc = pat.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
+    return new RegExp(`^${esc}$`, 'i').test(name)
+  }
+  for (const s of sheets) {
+    const ap = s.applyTo || {}
+    const okFile = test(ap.filenamePattern || '*', filename || '')
+    const okSheet = ap.sheetName ? ap.sheetName === sheetName : true
+    if (okFile && okSheet) return s
+  }
+  return null
+}
+
+function toWch(width: number): number {
+  const unit = (styles as any)?.units?.columnWidth || 'wch'
+  if (unit === 'px') return Math.max(8, Math.floor(width / 7))
+  return width
 }
