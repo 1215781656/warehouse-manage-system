@@ -1,31 +1,62 @@
 async function resolveTemplateBuffer(input: string): Promise<{ url: string | null, buffer: ArrayBuffer | null }> {
+  const mode: string = (import.meta as any)?.env?.MODE || 'development'
   const base: string = (import.meta as any)?.env?.BASE_URL || '/'
+  const isDev = mode !== 'production'
   const name = input.endsWith('.xlsx') ? input : `${input}.xlsx`
-  const candidates = [
-    name,
-    `${base}templates/shipment-template.xlsx`,
-    `${base}shipment-template.xlsx`,
-    `/templates/shipment-template.xlsx`,
-    `/shipment-template.xlsx`
-  ]
-  for (const url of candidates) {
+  const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : ''
+  const devBase = origin ? `${origin}${base}` : base
+  const tried: string[] = []
+  const mk = (u: string) => {
+    try {
+      const full = new URL(u, typeof window !== 'undefined' ? window.location.href : 'http://localhost/').toString()
+      return full
+    } catch {
+      return u
+    }
+  }
+  const candidates: string[] = []
+  candidates.push(name)
+  if (isDev) {
+    candidates.push(`${devBase}templates/shipment-template.xlsx`)
+    candidates.push(`${base}templates/shipment-template.xlsx`)
+    candidates.push(`templates/shipment-template.xlsx`)
+    candidates.push(`/templates/shipment-template.xlsx`)
+  } else {
+    candidates.push(`${base}templates/shipment-template.xlsx`)
+    candidates.push(`./templates/shipment-template.xlsx`)
+    candidates.push(`templates/shipment-template.xlsx`)
+    candidates.push(`/templates/shipment-template.xlsx`)
+  }
+  for (const raw of candidates) {
+    const url = mk(raw)
     try {
       const r = await fetch(url)
       if (r.ok) {
         const buf = await r.arrayBuffer()
         return { url, buffer: buf }
       }
-    } catch {}
+      tried.push(`${url} [${r.status}]`)
+    } catch (e:any) {
+      tried.push(`${url} [error]`)
+    }
   }
   try {
     const api: any = (window as any).electronAPI
     if (api && api.readFileBuffer) {
-      const rels = ['templates/shipment-template.xlsx', 'shipment-template.xlsx']
+      const rels = ['templates/shipment-template.xlsx', 'shipment-template.xlsx', 'templates\\shipment-template.xlsx', 'shipment-template.xlsx']
       for (const rel of rels) {
-        const buf = await api.readFileBuffer(rel)
-        if (buf && buf.byteLength) return { url: rel, buffer: buf }
+        try {
+          const buf = await api.readFileBuffer(rel)
+          if (buf && buf.byteLength) return { url: rel, buffer: buf }
+          tried.push(`${rel} [electron empty]`)
+        } catch {
+          tried.push(`${rel} [electron error]`)
+        }
       }
     }
+  } catch {}
+  try {
+    if (tried.length) console.error('[模板路径解析失败]', { mode, base, tried })
   } catch {}
   return { url: null, buffer: null }
 }
@@ -112,8 +143,8 @@ export async function generateShipmentFromTemplate(filename: string, templateUrl
     a.click()
     URL.revokeObjectURL(a.href)
     return true
-  } catch (e) {
-    
+  } catch (e:any) {
+    try { console.error('[生成发货单失败]', e?.message || e) } catch {}
     return false
   }
 }

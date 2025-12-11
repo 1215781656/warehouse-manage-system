@@ -15,10 +15,11 @@
         </div>
         <span class="label">供应商</span>
         <el-input v-model="search.supplier" size="small" style="width:160px" />
-        <span class="label">货单号</span>
+        <span class="label">货单编号</span>
         <el-input v-model="search.order_no" size="small" style="width:160px" />
-        <span class="label">编号</span>
-        <el-input v-model="search.item_code" size="small" style="width:160px" />
+        <span class="label">付款状态</span>
+        <StatusFilter v-model="search.status" :loading="loading" storage-key="status-filter-pay" aria-label="应付付款状态筛选" />
+        
         <el-button size="small" type="primary" style="margin-left:8px" @click="load">查询</el-button>
         <el-button size="small" style="margin-left:8px" @click="reset">重置</el-button>
       </div>
@@ -29,8 +30,8 @@
       <el-table ref="tableRef" :data="paged" stripe style="width:100%" v-loading="loading" :row-key="rowKey" :reserve-selection="true" @selection-change="onSelectionChange">
         <el-table-column type="selection" width="55" :selectable="rowSelectable" />
         <el-table-column prop="ship_date" label="入库日期" width="120" />
-        <el-table-column prop="order_no" label="货单号" width="140" />
-        <el-table-column prop="item_code" label="编号" width="120" />
+        <el-table-column prop="order_no" label="货单编号" width="140" />
+        
         <el-table-column prop="supplier" label="供应商" width="140" />
         <el-table-column prop="item_name" label="品名规格" min-width="160" />
         <el-table-column prop="rolls" label="匹数" width="100" />
@@ -63,11 +64,12 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { query, execute } from '@/api/db'
 import { exportToXLSX, getVisibleColumnsFromTable } from '@/utils/exportExcel'
 import { ElMessage } from 'element-plus'
 import { runWithLoading } from '@/utils/ui'
+import StatusFilter from '@/components/StatusFilter.vue'
 
 const loading = ref(false)
 const rows = ref<any[]>([])
@@ -75,7 +77,7 @@ const tableRef = ref<any>(null)
 const selectAll = ref(false)
 const selectedKeys = ref<Set<any>>(new Set())
 const suppressSelectionEvent = ref(false)
-const rowKey = (row:any)=> `${row.order_no}|${row.item_code||''}`
+const rowKey = (row:any)=> `${row.order_no}|${row.ship_date}|${row.item_name||''}`
 const onSelectionChange = (sel:any[]) => { if (suppressSelectionEvent.value) return; const pageRows = paged.value; const pageKeys = new Set(pageRows.map(r=>rowKey(r))); const newSel = new Set(sel.map(r=>rowKey(r))); for (const k of Array.from(pageKeys)) selectedKeys.value.delete(k); for (const k of Array.from(newSel)) selectedKeys.value.add(k); if (selectAll.value && newSel.size < pageRows.length) selectAll.value=false }
 const toggleSelectAll = async () => { if (selectAll.value) { selectedKeys.value = new Set(filtered.value.map(r=>rowKey(r))); suppressSelectionEvent.value = true; paged.value.forEach(r=> tableRef.value?.toggleRowSelection(r, true)); suppressSelectionEvent.value=false } else { selectedKeys.value.clear(); paged.value.forEach(r=> tableRef.value?.toggleRowSelection(r, false)) } await nextTick(); restoreSelection() }
 const rowSelectable = () => !selectAll.value
@@ -85,7 +87,7 @@ const onExport = async () => {
     let rowsSel: any[] = []
     if (selectAll.value) {
       rowsSel = await query(`
-        SELECT sir.ship_date, sir.order_no, sir.item_code, sir.supplier, sir.item_name, sir.composition, sir.color, sir.process_code, sir.gram_weight, sir.rolls, sir.weight_kg, sir.price, sir.total_amount,
+        SELECT sir.ship_date, sir.order_no, sir.supplier, sir.item_name, sir.composition, sir.color, sir.process_code, sir.gram_weight, sir.rolls, sir.weight_kg, sir.price, sir.total_amount,
                p.paid_amount, p.unpaid_amount
         FROM stock_in_records sir
         LEFT JOIN payables p ON p.order_no = sir.order_no
@@ -111,12 +113,12 @@ const onExport = async () => {
     ElMessage.success('已导出')
   } catch (e:any) { ElMessage.error(e.message||'导出失败') }
 }
-const search = ref<{supplier:string; order_no:string; item_code:string; range: [Date,Date]|null}>({ supplier:'', order_no:'', item_code:'', range: null })
+const search = ref<{supplier:string; order_no:string; range: [Date,Date]|null; status: 'all'|'pending'|'done'}>({ supplier:'', order_no:'', range: null, status: 'all' })
 const filtered = computed(()=>{
   return rows.value.filter(r=>{
     if (search.value.supplier && !(r.supplier||'').includes(search.value.supplier)) return false
     if (search.value.order_no && !(r.order_no||'').includes(search.value.order_no)) return false
-    if (search.value.item_code && !(r.item_code||'').includes(search.value.item_code)) return false
+    
     if (search.value.range) {
       const d = new Date(r.ship_date)
       const [s,e] = search.value.range
@@ -177,11 +179,14 @@ const load = async () => {
           END,
           updated_at = CURRENT_TIMESTAMP
     `)
+    const st = search.value.status
+    const where = st==='pending' ? 'WHERE COALESCE(p.unpaid_amount,0) > 0' : (st==='done' ? 'WHERE COALESCE(p.unpaid_amount,0) = 0' : '')
     rows.value = await query(`
-      SELECT sir.ship_date, sir.order_no, sir.item_code, sir.supplier, sir.item_name, sir.composition, sir.color, sir.process_code, sir.gram_weight, sir.rolls, sir.weight_kg, sir.price, sir.total_amount,
+      SELECT sir.ship_date, sir.order_no, sir.supplier, sir.item_name, sir.composition, sir.color, sir.process_code, sir.gram_weight, sir.rolls, sir.weight_kg, sir.price, sir.total_amount,
              p.paid_amount, p.unpaid_amount
       FROM stock_in_records sir
       LEFT JOIN payables p ON p.order_no = sir.order_no
+      ${where}
       ORDER BY sir.created_at DESC
       LIMIT 1000
     `)
@@ -214,7 +219,11 @@ const savePaid = async () => {
 
 // 删除由入库记录删除时联动执行，页面不提供单独删除
 
-const reset = () => { search.value = { supplier:'', order_no:'', range:null } }
+const reset = () => { search.value = { supplier:'', order_no:'', range:null, status:'all' } }
+
+let statusTimer: any = null
+const onStatusChange = async () => { if (statusTimer) clearTimeout(statusTimer); statusTimer = setTimeout(async () => { currentPage.value = 1; await load() }, 300) }
+watch(()=>search.value.status, onStatusChange)
 
 onMounted(load)
 // 数据清空通知后刷新

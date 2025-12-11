@@ -5,12 +5,12 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node -e \"const fs=require('fs');const p='dist/web/templates/shipment-template.xlsx';if(!fs.existsSync(p)){console.error('[ERROR] 模板未打包: '+p);process.exit(1)}else{console.log('[OK] 模板已打包: '+p)}\"",
     "preview": "vite preview",
     "electron": "electron .",
     "electron:dev": "concurrently -n dev,electron -c \"blue,magenta\" \"npm run dev\" \"wait-on tcp:5174 && set NODE_ENV=development&& electron .\"",
     "electron:dir": "npm run build && electron-builder --dir",
-    "electron:nsis": "npm run build && electron-builder --win nsis",
+    "electron:nsis": "node scripts/killWinUnpacked.js && npm run build && electron-builder --win nsis",
     "electron:build": "npm run build && electron-builder",
     "postinstall": "electron-builder install-app-deps",
     "test": "node tests/run-tests.js"
@@ -33,6 +33,8 @@
     "@types/bcrypt": "^5.0.0",
     "@types/better-sqlite3": "^7.6.4",
     "@vitejs/plugin-vue": "^4.2.3",
+    "unplugin-auto-import": "^0.17.7",
+    "unplugin-vue-components": "^0.26.0",
     "concurrently": "^8.2.0",
     "electron": "^25.3.1",
     "electron-builder": "^24.6.3",
@@ -48,7 +50,7 @@
     "productName": "校服仓库管理系统",
     "npmRebuild": false,
     "directories": {
-      "output": "release-build"
+      "output": "release-output-3"
     },
     "files": [
       "dist/web/**/*",

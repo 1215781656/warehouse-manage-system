@@ -8,6 +8,8 @@ let mainWindow
 let db
 let tray
 let isQuiting = false
+let autoExitTimer = null
+const AUTO_EXIT_MS = Number(process.env.AUTO_EXIT_MS || 0)
 
 // 创建数据库连接
 function createDatabase() {
@@ -344,14 +346,11 @@ function createWindow() {
   // 设置菜单
   Menu.setApplicationMenu(null)
 
-  mainWindow.on('close', (e) => {
-    if (!isQuiting && tray) {
-      e.preventDefault()
-      mainWindow.hide()
-    } else {
-      isQuiting = true
-      app.quit()
-    }
+  mainWindow.on('close', () => {
+    isQuiting = true
+    try { tray && tray.destroy() } catch {}
+    try { db && db.close() } catch {}
+    app.quit()
   })
 
   // 窗口关闭事件
@@ -971,9 +970,11 @@ ipcMain.handle('win-control', async (event, action) => {
     case 'unmaximize':
       mainWindow.unmaximize(); break
     case 'close':
-      mainWindow.hide(); break
+      isQuiting = true; mainWindow.close(); break
     case 'isMaximized':
       return mainWindow.isMaximized()
+    case 'quit':
+      isQuiting = true; try { tray && tray.destroy() } catch {}; try { db && db.close() } catch {}; app.quit(); break
   }
   return true
 })
@@ -1029,6 +1030,10 @@ app.whenReady().then(() => {
       createWindow()
     }
   })
+
+  if (AUTO_EXIT_MS > 0) {
+    try { autoExitTimer = setTimeout(() => { isQuiting = true; app.quit() }, AUTO_EXIT_MS) } catch {}
+  }
 })
 
 // 所有窗口关闭时退出应用
@@ -1044,6 +1049,14 @@ app.on('before-quit', () => {
   if (db) {
     db.close()
   }
+  try { tray && tray.destroy() } catch {}
+  if (autoExitTimer) { try { clearTimeout(autoExitTimer) } catch {} }
+})
+
+app.on('quit', () => {
+  try { db && db.close() } catch {}
+  try { tray && tray.destroy() } catch {}
+  try { process.exit(0) } catch {}
 })
 function rebuildClothInventory() {
   db.exec(`

@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+const notify = (type: 'success' | 'error' | 'warning' | 'info', msg: string) => {
+  try {
+    const fn = (window as any).__notify
+    if (typeof fn === 'function') fn(type, msg)
+  } catch {}
+}
 
 export interface User {
   id: number
@@ -26,20 +31,20 @@ export const useUserStore = defineStore('user', () => {
       }
       const response = await window.electronAPI.authLogin(username, password)
       if (!response.success) {
-        ElMessage.error(response.error || '登录失败')
+        notify('error', response.error || '登录失败')
         return false
       }
       const user = response.data
 
       userInfo.value = user
       token.value = `${username}_${Date.now()}`
-      localStorage.setItem('token', token.value)
-      localStorage.setItem('userInfo', JSON.stringify(user))
+      sessionStorage.setItem('token', token.value)
+      sessionStorage.setItem('userInfo', JSON.stringify(user))
       
-      ElMessage.success('登录成功')
+      notify('success', '登录成功')
       return true
     } catch (error) {
-      ElMessage.error('登录失败: ' + (error as any).message)
+      notify('error', '登录失败: ' + (error as any).message)
       return false
     }
   }
@@ -48,15 +53,15 @@ export const useUserStore = defineStore('user', () => {
   const logout = () => {
     userInfo.value = null
     token.value = ''
-    localStorage.removeItem('token')
-    localStorage.removeItem('userInfo')
-    ElMessage.success('已退出登录')
+    sessionStorage.removeItem('token')
+    sessionStorage.removeItem('userInfo')
+    notify('success', '已退出登录')
   }
 
   // 检查登录状态
   const checkLoginStatus = () => {
-    const savedToken = localStorage.getItem('token')
-    const savedUserInfo = localStorage.getItem('userInfo')
+    const savedToken = sessionStorage.getItem('token')
+    const savedUserInfo = sessionStorage.getItem('userInfo')
     
     if (savedToken && savedUserInfo) {
       token.value = savedToken
@@ -71,7 +76,7 @@ export const useUserStore = defineStore('user', () => {
         throw new Error('请在桌面应用中运行，浏览器预览无法连接本地数据库')
       }
       if (!userInfo.value) {
-        ElMessage.error('用户未登录')
+        notify('error', '用户未登录')
         return false
       }
 
@@ -81,10 +86,10 @@ export const useUserStore = defineStore('user', () => {
         throw new Error(response.error)
       }
 
-      ElMessage.success('密码修改成功')
+      notify('success', '密码修改成功')
       return true
     } catch (error) {
-      ElMessage.error('密码修改失败: ' + error.message)
+      notify('error', '密码修改失败: ' + (error as any).message)
       return false
     }
   }
@@ -105,7 +110,7 @@ export const useUserStore = defineStore('user', () => {
 
       return response.data
     } catch (error) {
-      ElMessage.error('获取用户列表失败: ' + error.message)
+      notify('error', '获取用户列表失败: ' + (error as any).message)
       return []
     }
   }
@@ -128,10 +133,10 @@ export const useUserStore = defineStore('user', () => {
         throw new Error(response.error)
       }
 
-      ElMessage.success('用户创建成功')
+      notify('success', '用户创建成功')
       return true
     } catch (error) {
-      ElMessage.error('用户创建失败: ' + error.message)
+      notify('error', '用户创建失败: ' + (error as any).message)
       return false
     }
   }
@@ -151,10 +156,10 @@ export const useUserStore = defineStore('user', () => {
         throw new Error(response.error)
       }
 
-      ElMessage.success('用户更新成功')
+      notify('success', '用户更新成功')
       return true
     } catch (error) {
-      ElMessage.error('用户更新失败: ' + error.message)
+      notify('error', '用户更新失败: ' + (error as any).message)
       return false
     }
   }
@@ -174,10 +179,10 @@ export const useUserStore = defineStore('user', () => {
         throw new Error(response.error)
       }
 
-      ElMessage.success('用户删除成功')
+      notify('success', '用户删除成功')
       return true
     } catch (error) {
-      ElMessage.error('用户删除失败: ' + error.message)
+      notify('error', '用户删除失败: ' + (error as any).message)
       return false
     }
   }

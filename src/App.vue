@@ -1,7 +1,9 @@
 <template>
   <div id="app">
-    <HeaderBar />
-    <template v-if="isLoggedIn">
+    <template v-if="!isLoginRoute">
+      <HeaderBar />
+    </template>
+    <template v-if="isLoggedIn && !isLoginRoute">
       <template v-if="isSubApp">
         <router-view />
       </template>
@@ -44,10 +46,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, watch } from 'vue'
 import { useUserStore } from '@/store/modules/user'
 import { useRoute, useRouter } from 'vue-router'
-import { Monitor, Collection, Goods, DataAnalysis, Setting, ArrowDown } from '@element-plus/icons-vue'
 import HeaderBar from '@/components/HeaderBar.vue'
 
 const userStore = useUserStore()
@@ -56,14 +57,26 @@ const router = useRouter()
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const activeMenu = computed(() => route.path)
 const isSubApp = computed(() => route.path.startsWith('/app/'))
+const isLoginRoute = computed(() => route.path.startsWith('/login'))
+
+// 监听登录状态，如果已登录且在登录页，则跳转到应用中心
+watch(isLoggedIn, (val) => {
+  if (val && isLoginRoute.value) {
+    router.push('/hub')
+  }
+})
 
 const goQuick = (type: 'in' | 'out') => {
   router.push(type === 'in' ? '/app/cloth-io/in' : '/app/cloth-io/out')
 }
 
 onMounted(() => {
-  // 检查是否有登录用户
-  const token = localStorage.getItem('token')
+  // 清除旧版本的本地存储登录状态，确保退出应用即清除状态
+  localStorage.removeItem('token')
+  localStorage.removeItem('userInfo')
+
+  // 检查是否有登录用户 (使用 sessionStorage，仅当前会话有效)
+  const token = sessionStorage.getItem('token')
   if (token) {
     userStore.checkLoginStatus()
   }

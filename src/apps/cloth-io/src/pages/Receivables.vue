@@ -17,8 +17,8 @@
         <el-input v-model="search.customer" size="small" style="width:160px" />
         <span class="label">货单号</span>
         <el-input v-model="search.order_no" size="small" style="width:160px" />
-        <span class="label">编号</span>
-        <el-input v-model="search.item_code" size="small" style="width:160px" />
+        <span class="label">付款状态</span>
+        <StatusFilter v-model="search.status" :loading="loading" storage-key="status-filter-recv" aria-label="应收付款状态筛选" />
         <el-button size="small" type="primary" style="margin-left:8px" @click="load">查询</el-button>
         <el-button size="small" style="margin-left:8px" @click="reset">重置</el-button>
       </div>
@@ -63,11 +63,12 @@
   </div>
 </template>
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { query, execute } from '@/api/db'
 import { exportToXLSX, getVisibleColumnsFromTable } from '@/utils/exportExcel'
 import { ElMessage } from 'element-plus'
 import { runWithLoading } from '@/utils/ui'
+import StatusFilter from '@/components/StatusFilter.vue'
 
 const loading = ref(false)
 const rows = ref<any[]>([])
@@ -111,7 +112,7 @@ const onExport = async () => {
     ElMessage.success('已导出')
   } catch (e:any) { ElMessage.error(e.message||'导出失败') }
 }
-const search = ref<{customer:string; order_no:string; item_code:string; range: [Date,Date]|null}>({ customer:'', order_no:'', item_code:'', range: null })
+const search = ref<{customer:string; order_no:string; item_code:string; range: [Date,Date]|null; status: 'all'|'pending'|'done'}>({ customer:'', order_no:'', item_code:'', range: null, status: 'all' })
 const filtered = computed(()=>{
   return rows.value.filter(r=>{
     if (search.value.customer && !(r.customer||'').includes(search.value.customer)) return false
@@ -177,11 +178,14 @@ const load = async () => {
           END,
           updated_at = CURRENT_TIMESTAMP
     `)
+    const st = search.value.status
+    const where = st==='pending' ? 'WHERE COALESCE(r.unpaid_amount,0) > 0' : (st==='done' ? 'WHERE COALESCE(r.unpaid_amount,0) = 0' : '')
     rows.value = await query(`
       SELECT sor.ship_date, sor.order_no, sor.item_code, sor.customer, sor.item_name, sor.composition, sor.color, sor.process_code, sor.gram_weight, sor.rolls, sor.weight_kg, sor.price, sor.total_amount,
              r.paid_amount, r.unpaid_amount, r.id AS recv_id
       FROM stock_out_records sor
       LEFT JOIN receivables r ON r.order_no = sor.order_no
+      ${where}
       ORDER BY sor.created_at DESC
       LIMIT 1000
     `)
@@ -214,7 +218,11 @@ const savePaid = async () => {
 
 // 删除由出库记录删除时联动执行，页面不提供单独删除
 
-const reset = () => { search.value = { customer:'', order_no:'', range:null } }
+const reset = () => { search.value = { customer:'', order_no:'', item_code:'', range:null, status:'all' } }
+
+let statusTimer: any = null
+const onStatusChange = async () => { if (statusTimer) clearTimeout(statusTimer); statusTimer = setTimeout(async () => { currentPage.value = 1; await load() }, 300) }
+watch(()=>search.value.status, onStatusChange)
 
 onMounted(load)
 // 数据清空通知后刷新

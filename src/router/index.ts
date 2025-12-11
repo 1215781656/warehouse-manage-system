@@ -4,7 +4,7 @@ import { useUserStore } from '@/store/modules/user'
 const routes = [
   {
     path: '/',
-    redirect: '/app/cloth-io/out'
+    redirect: '/login'
   },
   {
     path: '/login',
@@ -39,7 +39,9 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
   
-  if (to.meta.requiresAuth && !userStore.isLoggedIn) {
+  if (to.path.startsWith('/login') && userStore.isLoggedIn) {
+    next('/hub')
+  } else if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     next('/login')
   } else if (to.meta.requiresAdmin && userStore.userInfo?.role !== 'admin') {
     next('/dashboard')

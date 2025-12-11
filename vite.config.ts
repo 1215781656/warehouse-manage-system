@@ -19,10 +19,23 @@ export default defineConfig({
     outDir: 'dist/web',
     emptyOutDir: false,
     assetsDir: 'assets',
+    sourcemap: false,
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html')
+      },
+      output: {
+        manualChunks: {
+          'vendor-vue': ['vue', 'vue-router', 'pinia'],
+          'vendor-ui': ['element-plus'],
+          'vendor-charts': ['echarts', 'vue-echarts'],
+          'vendor-excel': ['exceljs', 'xlsx']
+        }
       }
     }
+  },
+  optimizeDeps: {
+    include: ['vue', 'vue-router', 'pinia', 'element-plus'],
+    exclude: ['exceljs']
   }
 })

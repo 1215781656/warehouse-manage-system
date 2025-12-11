@@ -16,6 +16,13 @@ declare global {
       showOpenDialog: (options: any) => Promise<any>
       getSystemInfo: () => Promise<any>
     }
+    windowAPI?: {
+      minimize: () => Promise<any>
+      maximize: () => Promise<any>
+      unmaximize: () => Promise<any>
+      close: () => Promise<any>
+      isMaximized: () => Promise<boolean>
+    }
   }
 }
 

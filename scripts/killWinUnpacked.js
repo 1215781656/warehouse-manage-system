@@ -12,12 +12,21 @@ function killWinUnpackedProcesses() {
     }
     // also kill by exe name
     try { execSync('taskkill /F /IM "校服仓库管理系统.exe"', { stdio: 'ignore' }) } catch {}
+    try { execSync('taskkill /F /IM "electron.exe"', { stdio: 'ignore' }) } catch {}
   } catch {}
 }
 
 function cleanDir() {
-  const dir = path.join(process.cwd(), 'release-build', 'win-unpacked')
-  try { fs.rmSync(dir, { recursive: true, force: true }) } catch {}
+  const bases = ['release-build-delivery', 'release-build']
+  for (const base of bases) {
+    const dir = path.join(process.cwd(), base, 'win-unpacked')
+    try {
+      const backup = dir + '-old-' + Date.now()
+      try { fs.renameSync(dir, backup) } catch {}
+      try { fs.rmSync(dir, { recursive: true, force: true }) } catch {}
+      try { fs.rmSync(backup, { recursive: true, force: true }) } catch {}
+    } catch {}
+  }
 }
 
 killWinUnpackedProcesses()
